@@ -2,6 +2,11 @@ document.getElementById("fileInput").addEventListener("change", handleFile);
 document.getElementById("downloadBtn").addEventListener("click", downloadImage);
 
 let colorTable = {};
+let progressBar = document.createElement("progress");
+progressBar.id = "progressBar";
+progressBar.value = 0;
+progressBar.max = 100;
+document.querySelector(".container").appendChild(progressBar);
 
 // 2つのJSONファイルをロードし、データを統合
 Promise.all([
@@ -27,30 +32,14 @@ function handleFile(event) {
             applyColorTransform(ctx, canvas.width, canvas.height);
         };
         img.src = URL.createObjectURL(file);
-    } else if (file.type.startsWith("video/")) {
-        const video = document.getElementById("video");
-        video.src = URL.createObjectURL(file);
-        video.hidden = false;
-        video.play();
-
-        video.onloadeddata = () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            drawVideoFrame(video, ctx, canvas);
-        };
     }
-}
-
-function drawVideoFrame(video, ctx, canvas) {
-    if (video.paused || video.ended) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    applyColorTransform(ctx, canvas.width, canvas.height);
-    requestAnimationFrame(() => drawVideoFrame(video, ctx, canvas));
 }
 
 function applyColorTransform(ctx, width, height) {
     let imageData = ctx.getImageData(0, 0, width, height);
     let data = imageData.data;
+    let totalPixels = width * height;
+    let processedPixels = 0;
 
     for (let i = 0; i < data.length; i += 4) {
         let r = data[i], g = data[i+1], b = data[i+2];
@@ -67,9 +56,13 @@ function applyColorTransform(ctx, width, height) {
             data[i+1] = nearestColor[1];
             data[i+2] = nearestColor[2];
         }
+
+        processedPixels++;
+        progressBar.value = (processedPixels / totalPixels) * 100;
     }
 
     ctx.putImageData(imageData, 0, 0);
+    progressBar.value = 100; // 完了時に100%にする
 }
 
 function findNearestColor(r, g, b) {
@@ -78,7 +71,7 @@ function findNearestColor(r, g, b) {
 
     for (let key in colorTable) {
         let [cr, cg, cb] = key.split(',').map(Number);
-        let distance = Math.sqrt((r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2);
+        let distance = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2;
 
         if (distance < minDistance) {
             minDistance = distance;
