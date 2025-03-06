@@ -2,9 +2,14 @@ document.getElementById("fileInput").addEventListener("change", handleFile);
 document.getElementById("downloadBtn").addEventListener("click", downloadImage);
 
 let colorTable = {};
-fetch('color_table.json')
-    .then(response => response.json())
-    .then(data => colorTable = data);
+
+// 2つのJSONファイルをロードし、データを統合
+Promise.all([
+    fetch('color_table_part1.json').then(response => response.json()),
+    fetch('color_table_part2.json').then(response => response.json())
+]).then(([data1, data2]) => {
+    colorTable = { ...data1, ...data2 };
+}).catch(error => console.error("JSONファイルの読み込みエラー:", error));
 
 function handleFile(event) {
     const file = event.target.files[0];
