@@ -8,16 +8,31 @@ progressBar.value = 0;
 progressBar.max = 100;
 document.querySelector(".container").appendChild(progressBar);
 
-Promise.all([
-    fetch('color_table_part1.json').then(response => response.json()),
-    fetch('color_table_part2.json').then(response => response.json())
-]).then(([data1, data2]) => {
-    colorTable = { ...data1, ...data2 };
-}).catch(error => console.error("JSONファイルの読み込みエラー:", error));
+// JSONファイルのロードとcolorTableの初期化を非同期処理
+async function initializeColorTable() {
+    try {
+        const responses = await Promise.all([
+            fetch('color_table_part1.json'),
+            fetch('color_table_part2.json')
+        ]);
+        const data = await Promise.all(responses.map(res => res.json()));
+        colorTable = { ...data[0], ...data[1] };
+    } catch (error) {
+        console.error("JSONファイルの読み込みエラー:", error);
+    }
+}
 
-function handleFile(event) {
+// colorTableの初期化
+initializeColorTable();
+
+async function handleFile(event) {
     const file = event.target.files[0];
     if (!file) return;
+
+    // colorTableのロード完了を待機
+    while (Object.keys(colorTable).length === 0) {
+        await new Promise(resolve => setTimeout(resolve, 100)); // 100msごとに確認
+    }
 
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
@@ -92,7 +107,7 @@ function findNearestColor(r, g, b) {
         }
     }
 
-    return closestColor;
+    return colorTable[Object.keys(colorTable).find(key => colorTable[key].split(',').map(Number).every((val, index) => val === closestColor[index]))].split(',').map(Number);
 }
 
 function processVideo(video, canvas, ctx) {
