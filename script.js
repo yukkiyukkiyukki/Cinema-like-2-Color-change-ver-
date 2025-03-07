@@ -1,5 +1,5 @@
 document.getElementById("fileInput").addEventListener("change", handleFile);
-document.getElementById("downloadBtn").addEventListener("click", downloadImage);
+document.getElementById("downloadBtn").addEventListener("click", downloadProcessed);
 
 let colorTable = {};
 let progressBar = document.createElement("progress");
@@ -8,7 +8,6 @@ progressBar.value = 0;
 progressBar.max = 100;
 document.querySelector(".container").appendChild(progressBar);
 
-// 2つのJSONファイルをロードし、データを統合
 Promise.all([
     fetch('color_table_part1.json').then(response => response.json()),
     fetch('color_table_part2.json').then(response => response.json())
@@ -22,8 +21,11 @@ function handleFile(event) {
 
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
+    const video = document.getElementById("video");
 
     if (file.type.startsWith("image/")) {
+        video.hidden = true;
+        canvas.hidden = false;
         const img = new Image();
         img.onload = () => {
             canvas.width = img.width;
@@ -32,6 +34,17 @@ function handleFile(event) {
             applyColorTransform(ctx, canvas.width, canvas.height);
         };
         img.src = URL.createObjectURL(file);
+    } else if (file.type.startsWith("video/")) {
+        canvas.hidden = true;
+        video.hidden = false;
+        video.src = URL.createObjectURL(file);
+        video.onloadeddata = () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+        };
+        video.onplay = () => {
+            processVideo(video, canvas, ctx);
+        };
     }
 }
 
@@ -42,19 +55,19 @@ function applyColorTransform(ctx, width, height) {
     let processedPixels = 0;
 
     for (let i = 0; i < data.length; i += 4) {
-        let r = data[i], g = data[i+1], b = data[i+2];
+        let r = data[i], g = data[i + 1], b = data[i + 2];
         let key = `${r},${g},${b}`;
 
         if (colorTable[key]) {
             let [newR, newG, newB] = colorTable[key].split(',').map(Number);
             data[i] = newR;
-            data[i+1] = newG;
-            data[i+2] = newB;
+            data[i + 1] = newG;
+            data[i + 2] = newB;
         } else {
             let nearestColor = findNearestColor(r, g, b);
             data[i] = nearestColor[0];
-            data[i+1] = nearestColor[1];
-            data[i+2] = nearestColor[2];
+            data[i + 1] = nearestColor[1];
+            data[i + 2] = nearestColor[2];
         }
 
         processedPixels++;
@@ -62,7 +75,7 @@ function applyColorTransform(ctx, width, height) {
     }
 
     ctx.putImageData(imageData, 0, 0);
-    progressBar.value = 100; // 完了時に100%にする
+    progressBar.value = 100;
 }
 
 function findNearestColor(r, g, b) {
@@ -82,10 +95,28 @@ function findNearestColor(r, g, b) {
     return closestColor;
 }
 
-function downloadImage() {
+function processVideo(video, canvas, ctx) {
+    function step() {
+        if (video.paused || video.ended) return;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        applyColorTransform(ctx, canvas.width, canvas.height);
+        requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+}
+
+function downloadProcessed() {
     const canvas = document.getElementById("canvas");
+    const video = document.getElementById("video");
     const link = document.createElement("a");
-    link.download = "converted_image.png";
-    link.href = canvas.toDataURL("image/png");
+
+    if (!canvas.hidden) {
+        link.download = "converted_image.png";
+        link.href = canvas.toDataURL("image/png");
+    } else if (!video.hidden) {
+        link.download = "converted_video.webm";
+        link.href = canvas.captureStream().getVideoTracks()[0];
+    }
+
     link.click();
 }
